@@ -8,7 +8,7 @@ import (
 type Json map[string]interface{}
 
 func main() {
-	g := go....lam.New()
+	g := golam.New()
 	g.GET("/", func(c golam.Context) error {
 		return c.JSON(http.StatusOK, Json{
 			"hello": "world",
