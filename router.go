@@ -295,10 +295,17 @@ func findParamKeys(path string) (res []routeParam) {
 			continue
 		}
 
-		res = append(res, routeParam{
-			index: i,
-			key:   v,
-		})
+		v = v[startMarkerIdx+1 : endMarkerIdx]
+		rp := routeParam{
+			index:    i,
+			isGreedy: v[len(v)-1] == '+',
+		}
+
+		if rp.isGreedy {
+			rp.key = v[:len(v)-1]
+		}
+
+		res = append(res, rp)
 	}
 
 	return
