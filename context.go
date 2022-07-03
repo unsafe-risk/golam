@@ -41,6 +41,8 @@ type Context interface {
 
 	Cookies() []*http.Cookie
 
+	NoContent(status int) error
+
 	HTML(status int, html string) error
 
 	HTMLBytes(status int, b []byte) error
@@ -152,6 +154,11 @@ func (c *contextImpl) SetCookie(cookie *http.Cookie) {
 
 func (c *contextImpl) Cookies() []*http.Cookie {
 	return c.Request().Cookies()
+}
+
+func (c *contextImpl) NoContent(status int) error {
+	c.Response().WriteHeader(status)
+	return nil
 }
 
 func (c contextImpl) HTML(status int, html string) error {
