@@ -31,7 +31,10 @@ func (lr *lambdaRouter) AddRoute(method string, path string, handler HandlerFunc
 
 	method = replaceMethodWildcardToBlank(method)
 	r.params.setParamsInfo(method, findParamKeys(path))
-	r.handlers.setHandler(method, wrapMiddleware(handler, middleware...))
+	r.handlers.setHandler(method, func(c Context) error {
+		wrappedHandler := wrapMiddleware(handler, middleware...)
+		return wrappedHandler(c)
+	})
 }
 
 func (lr *lambdaRouter) DelRoute(method string, path string) {

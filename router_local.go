@@ -142,7 +142,10 @@ func (lr *localRouter) AddRoute(method string, path string, handler HandlerFunc,
 
 	method = replaceMethodWildcardToBlank(method)
 	(*targetRoute).params.setParamsInfo(method, pathParams)
-	(*targetRoute).handlers.setHandler(method, wrapMiddleware(handler, middleware...))
+	(*targetRoute).handlers.setHandler(method, func(c Context) error {
+		wrappedHandler := wrapMiddleware(handler, middleware...)
+		return wrappedHandler(c)
+	})
 }
 
 func (lr *localRouter) DelRoute(method string, path string) {
