@@ -20,7 +20,7 @@ func (lr *lambdaRouter) FindRoute(path string) *route {
 	return lr.routeTable[path]
 }
 
-func (lr *lambdaRouter) AddRoute(method string, path string, handler HandlerFunc) {
+func (lr *lambdaRouter) AddRoute(method string, path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
 	r := lr.routeTable[path]
 	if r == nil {
 		r = &route{
@@ -31,7 +31,7 @@ func (lr *lambdaRouter) AddRoute(method string, path string, handler HandlerFunc
 
 	method = replaceMethodWildcardToBlank(method)
 	r.params.setParamsInfo(method, findParamKeys(path))
-	r.handlers.setHandler(method, handler)
+	r.handlers.setHandler(method, wrapMiddleware(handler, middleware...))
 }
 
 func (lr *lambdaRouter) DelRoute(method string, path string) {
@@ -48,42 +48,42 @@ func (lr *lambdaRouter) DelRoute(method string, path string) {
 	}
 }
 
-func (lr *lambdaRouter) Any(path string, handler HandlerFunc) {
-	lr.AddRoute("", path, handler)
+func (lr *lambdaRouter) Any(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute("", path, handler, middleware...)
 }
 
-func (lr *lambdaRouter) GET(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodGet, path, handler)
+func (lr *lambdaRouter) GET(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodGet, path, handler, middleware...)
 }
 
-func (lr *lambdaRouter) HEAD(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodHead, path, handler)
+func (lr *lambdaRouter) HEAD(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodHead, path, handler, middleware...)
 }
 
-func (lr *lambdaRouter) POST(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodPost, path, handler)
+func (lr *lambdaRouter) POST(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodPost, path, handler, middleware...)
 }
 
-func (lr *lambdaRouter) PUT(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodPut, path, handler)
+func (lr *lambdaRouter) PUT(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodPut, path, handler, middleware...)
 }
 
-func (lr *lambdaRouter) PATCH(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodPatch, path, handler)
+func (lr *lambdaRouter) PATCH(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodPatch, path, handler, middleware...)
 }
 
-func (lr *lambdaRouter) DELETE(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodDelete, path, handler)
+func (lr *lambdaRouter) DELETE(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodDelete, path, handler, middleware...)
 }
 
-func (lr *lambdaRouter) CONNECT(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodConnect, path, handler)
+func (lr *lambdaRouter) CONNECT(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodConnect, path, handler, middleware...)
 }
 
-func (lr *lambdaRouter) OPTIONS(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodOptions, path, handler)
+func (lr *lambdaRouter) OPTIONS(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodOptions, path, handler, middleware...)
 }
 
-func (lr *lambdaRouter) TRACE(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodTrace, path, handler)
+func (lr *lambdaRouter) TRACE(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodTrace, path, handler, middleware...)
 }

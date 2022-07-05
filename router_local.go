@@ -61,7 +61,7 @@ func (lr *localRouter) FindRoute(path string) *route {
 	return cur.route
 }
 
-func (lr *localRouter) AddRoute(method string, path string, handler HandlerFunc) {
+func (lr *localRouter) AddRoute(method string, path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
 	path = replaceRootToEmpty(path)
 	parts := strings.Split(path, "/")
 	targetRoute := &lr.root.route
@@ -142,7 +142,7 @@ func (lr *localRouter) AddRoute(method string, path string, handler HandlerFunc)
 
 	method = replaceMethodWildcardToBlank(method)
 	(*targetRoute).params.setParamsInfo(method, pathParams)
-	(*targetRoute).handlers.setHandler(method, handler)
+	(*targetRoute).handlers.setHandler(method, wrapMiddleware(handler, middleware...))
 }
 
 func (lr *localRouter) DelRoute(method string, path string) {
@@ -195,42 +195,42 @@ func (lr *localRouter) DelRoute(method string, path string) {
 	//}
 }
 
-func (lr *localRouter) Any(path string, handler HandlerFunc) {
-	lr.AddRoute("", path, handler)
+func (lr *localRouter) Any(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute("", path, handler, middleware...)
 }
 
-func (lr *localRouter) GET(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodGet, path, handler)
+func (lr *localRouter) GET(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodGet, path, handler, middleware...)
 }
 
-func (lr *localRouter) HEAD(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodHead, path, handler)
+func (lr *localRouter) HEAD(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodHead, path, handler, middleware...)
 }
 
-func (lr *localRouter) POST(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodPost, path, handler)
+func (lr *localRouter) POST(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodPost, path, handler, middleware...)
 }
 
-func (lr *localRouter) PUT(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodPut, path, handler)
+func (lr *localRouter) PUT(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodPut, path, handler, middleware...)
 }
 
-func (lr *localRouter) PATCH(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodPatch, path, handler)
+func (lr *localRouter) PATCH(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodPatch, path, handler, middleware...)
 }
 
-func (lr *localRouter) DELETE(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodDelete, path, handler)
+func (lr *localRouter) DELETE(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodDelete, path, handler, middleware...)
 }
 
-func (lr *localRouter) CONNECT(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodConnect, path, handler)
+func (lr *localRouter) CONNECT(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodConnect, path, handler, middleware...)
 }
 
-func (lr *localRouter) OPTIONS(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodOptions, path, handler)
+func (lr *localRouter) OPTIONS(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodOptions, path, handler, middleware...)
 }
 
-func (lr *localRouter) TRACE(path string, handler HandlerFunc) {
-	lr.AddRoute(http.MethodTrace, path, handler)
+func (lr *localRouter) TRACE(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	lr.AddRoute(http.MethodTrace, path, handler, middleware...)
 }
