@@ -16,6 +16,10 @@ const (
 type Context interface {
 	Ctx() context.Context
 
+	Set(key interface{}, val interface{})
+
+	Get(key interface{}) interface{}
+
 	Request() *Req
 
 	Response() *Resp
@@ -88,6 +92,7 @@ type Context interface {
 var _ Context = (*contextImpl)(nil)
 
 type contextImpl struct {
+	ctx                 context.Context
 	request             *Req
 	response            *Resp
 	path                string
@@ -104,7 +109,18 @@ type contextImpl struct {
 }
 
 func (c *contextImpl) Ctx() context.Context {
-	return c.Request().Context()
+	if c.ctx == nil {
+		c.ctx = c.Request().Context()
+	}
+	return c.ctx
+}
+
+func (c *contextImpl) Set(key interface{}, val interface{}) {
+	c.ctx = context.WithValue(c.Ctx(), key, val)
+}
+
+func (c *contextImpl) Get(key interface{}) interface{} {
+	return c.Ctx().Value(key)
 }
 
 func (c *contextImpl) writeContentType(value string) {
