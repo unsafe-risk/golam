@@ -8,29 +8,29 @@ import (
 type Router interface {
 	FindRoute(path string) *route
 
-	AddRoute(method string, path string, handler HandlerFunc)
+	AddRoute(method string, path string, handler HandlerFunc, middleware ...MiddlewareFunc)
 
 	DelRoute(method string, path string)
 
-	Any(path string, handler HandlerFunc)
+	Any(path string, handler HandlerFunc, middleware ...MiddlewareFunc)
 
-	GET(path string, handler HandlerFunc)
+	GET(path string, handler HandlerFunc, middleware ...MiddlewareFunc)
 
-	HEAD(path string, handler HandlerFunc)
+	HEAD(path string, handler HandlerFunc, middleware ...MiddlewareFunc)
 
-	POST(path string, handler HandlerFunc)
+	POST(path string, handler HandlerFunc, middleware ...MiddlewareFunc)
 
-	PUT(path string, handler HandlerFunc)
+	PUT(path string, handler HandlerFunc, middleware ...MiddlewareFunc)
 
-	PATCH(path string, handler HandlerFunc)
+	PATCH(path string, handler HandlerFunc, middleware ...MiddlewareFunc)
 
-	DELETE(path string, handler HandlerFunc)
+	DELETE(path string, handler HandlerFunc, middleware ...MiddlewareFunc)
 
-	CONNECT(path string, handler HandlerFunc)
+	CONNECT(path string, handler HandlerFunc, middleware ...MiddlewareFunc)
 
-	OPTIONS(path string, handler HandlerFunc)
+	OPTIONS(path string, handler HandlerFunc, middleware ...MiddlewareFunc)
 
-	TRACE(path string, handler HandlerFunc)
+	TRACE(path string, handler HandlerFunc, middleware ...MiddlewareFunc)
 }
 
 type routeParam struct {
