@@ -346,44 +346,44 @@ func (g *Golam) Use(middleware ...MiddlewareFunc) {
 	g.middleware = append(g.middleware, middleware...)
 }
 
-func (g *Golam) Any(path string, handler HandlerFunc) {
-	g.Router().Any(path, handler)
+func (g *Golam) Any(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	g.Router().Any(path, handler, middleware...)
 }
 
-func (g *Golam) GET(path string, handler HandlerFunc) {
-	g.Router().GET(path, handler)
+func (g *Golam) GET(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	g.Router().GET(path, handler, middleware...)
 }
 
-func (g *Golam) HEAD(path string, handler HandlerFunc) {
-	g.Router().HEAD(path, handler)
+func (g *Golam) HEAD(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	g.Router().HEAD(path, handler, middleware...)
 }
 
-func (g *Golam) POST(path string, handler HandlerFunc) {
-	g.Router().POST(path, handler)
+func (g *Golam) POST(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	g.Router().POST(path, handler, middleware...)
 }
 
-func (g *Golam) PUT(path string, handler HandlerFunc) {
-	g.Router().PUT(path, handler)
+func (g *Golam) PUT(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	g.Router().PUT(path, handler, middleware...)
 }
 
-func (g *Golam) PATCH(path string, handler HandlerFunc) {
-	g.Router().PATCH(path, handler)
+func (g *Golam) PATCH(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	g.Router().PATCH(path, handler, middleware...)
 }
 
-func (g *Golam) DELETE(path string, handler HandlerFunc) {
-	g.Router().DELETE(path, handler)
+func (g *Golam) DELETE(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	g.Router().DELETE(path, handler, middleware...)
 }
 
-func (g *Golam) CONNECT(path string, handler HandlerFunc) {
-	g.Router().CONNECT(path, handler)
+func (g *Golam) CONNECT(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	g.Router().CONNECT(path, handler, middleware...)
 }
 
-func (g *Golam) OPTIONS(path string, handler HandlerFunc) {
-	g.Router().OPTIONS(path, handler)
+func (g *Golam) OPTIONS(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	g.Router().OPTIONS(path, handler, middleware...)
 }
 
-func (g *Golam) TRACE(path string, handler HandlerFunc) {
-	g.Router().TRACE(path, handler)
+func (g *Golam) TRACE(path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+	g.Router().TRACE(path, handler, middleware...)
 }
 
 const defaultNotFoundResponseData = "{\"message\":\"Not Found\"}"
