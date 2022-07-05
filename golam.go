@@ -86,6 +86,8 @@ type (
 
 		isLambdaRuntime bool
 		start           func() error
+		preMiddleware   []MiddlewareFunc
+		middleware      []MiddlewareFunc
 
 		router Router
 	}
@@ -171,6 +173,8 @@ func (d *defaultHttpHandler) ServeHTTP(writer http.ResponseWriter, request *http
 
 	if ctxImpl.handler == nil {
 		ctxImpl.handler = d.golam.NotFoundHandler
+	} else {
+		ctxImpl.handler = wrapMiddleware(ctxImpl.handler, append(d.golam.preMiddleware, d.golam.middleware...)...)
 	}
 
 	// TODO error handle
@@ -265,6 +269,8 @@ func (g *Golam) handleAPIGatewayToLambdaV2(ctx context.Context, request events.A
 
 	if ctxImpl.handler == nil {
 		ctxImpl.handler = g.NotFoundHandler
+	} else {
+		ctxImpl.handler = wrapMiddleware(ctxImpl.handler, append(g.preMiddleware, g.middleware...)...)
 	}
 
 	// TODO error handle
@@ -328,6 +334,14 @@ func getContentLength(request *events.APIGatewayV2HTTPRequest) (l int64) {
 
 	l, _ = strconv.ParseInt(request.Headers[headerContentLength], 10, 0)
 	return
+}
+
+func (g *Golam) Pre(middleware ...MiddlewareFunc) {
+	g.preMiddleware = append(g.preMiddleware, middleware...)
+}
+
+func (g *Golam) Use(middleware ...MiddlewareFunc) {
+	g.middleware = append(g.middleware, middleware...)
 }
 
 func (g *Golam) Any(path string, handler HandlerFunc) {
