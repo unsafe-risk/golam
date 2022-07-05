@@ -127,9 +127,10 @@ func (d *defaultHttpHandler) ServeHTTP(writer http.ResponseWriter, request *http
 		response: &Resp{
 			RespHeader: make(http.Header),
 		},
-		path:  reqPath,
-		query: request.URL.Query(),
-		golam: d.golam,
+		path:              reqPath,
+		query:             request.URL.Query(),
+		golam:             d.golam,
+		primalRequestHTTP: request,
 	}
 
 	r := d.golam.router.FindRoute(reqPath)
@@ -239,8 +240,9 @@ func (g *Golam) handleAPIGatewayToLambdaV2(ctx context.Context, request events.A
 		response: &Resp{
 			RespHeader: make(http.Header),
 		},
-		path:  request.RequestContext.HTTP.Path,
-		golam: g,
+		path:                request.RequestContext.HTTP.Path,
+		golam:               g,
+		primalRequestLambda: &request,
 	}
 
 	ctxImpl.query, _ = url.ParseQuery(request.RawQueryString)
