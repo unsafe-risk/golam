@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"github.com/aws/aws-lambda-go/events"
 	"net/http"
 	"net/url"
 )
@@ -76,21 +77,30 @@ type Context interface {
 	//SetLogger(l log.Logger)
 
 	Golam() *Golam
+
+	PrimalRequest() interface{}
+
+	PrimalRequestLambda() *events.APIGatewayV2HTTPRequest
+
+	PrimalRequestHTTP() *http.Request
 }
 
 var _ Context = (*contextImpl)(nil)
 
 type contextImpl struct {
-	request    *Req
-	response   *Resp
-	path       string
-	pathParams PathParams
-	query      url.Values
-	handler    HandlerFunc
-	golam      *Golam
+	request             *Req
+	response            *Resp
+	path                string
+	pathParams          PathParams
+	query               url.Values
+	handler             HandlerFunc
+	golam               *Golam
+	primalRequestLambda *events.APIGatewayV2HTTPRequest
+	primalRequestHTTP   *http.Request
 
 	// TODO
 	//logger   log.Logger
+
 }
 
 func (c *contextImpl) Ctx() context.Context {
@@ -257,4 +267,20 @@ func (c *contextImpl) Write(b []byte) (int, error) {
 
 func (c *contextImpl) Golam() *Golam {
 	return c.golam
+}
+
+func (c *contextImpl) PrimalRequest() interface{} {
+	if isLambdaRuntime() {
+		return c.PrimalRequestLambda()
+	}
+
+	return c.PrimalRequestHTTP()
+}
+
+func (c *contextImpl) PrimalRequestLambda() *events.APIGatewayV2HTTPRequest {
+	return c.primalRequestLambda
+}
+
+func (c *contextImpl) PrimalRequestHTTP() *http.Request {
+	return c.primalRequestHTTP
 }
