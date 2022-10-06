@@ -1,12 +1,16 @@
 package golam
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"encoding/xml"
 	"github.com/aws/aws-lambda-go/events"
+	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 const (
@@ -20,9 +24,13 @@ type Context interface {
 
 	Get(key interface{}) interface{}
 
-	Request() *Req
+	SetRequest(r *http.Request)
 
-	Response() *Resp
+	Request() *http.Request
+
+	RequestBodyString() string
+
+	Response() *Response
 
 	Scheme() string
 
@@ -70,8 +78,10 @@ type Context interface {
 
 	XMLBytes(status int, b []byte) error
 
-	Result(status int, contentType string, b []byte) error
+	ResultStream(status int, contentType string, reader io.Reader) error
 
+	Result(status int, contentType string, b []byte) error
+	
 	Write(b []byte) (int, error)
 
 	// TODO
@@ -93,8 +103,8 @@ var _ Context = (*contextImpl)(nil)
 
 type contextImpl struct {
 	ctx                 context.Context
-	request             *Req
-	response            *Resp
+	request             *http.Request
+	response            *Response
 	path                string
 	pathParams          PathParams
 	query               url.Values
@@ -130,20 +140,55 @@ func (c *contextImpl) writeContentType(value string) {
 	}
 }
 
-func (c *contextImpl) Request() *Req {
+func (c *contextImpl) SetRequest(r *http.Request) {
+	c.request = r
+}
+
+func (c *contextImpl) Request() *http.Request {
 	return c.request
 }
 
-func (c *contextImpl) Response() *Resp {
+func (c *contextImpl) RequestBodyString() string {
+	var buf bytes.Buffer
+	c.request.Body = io.NopCloser(io.TeeReader(c.request.Body, &buf))
+	return buf.String()
+}
+
+func (c *contextImpl) Response() *Response {
 	return c.response
 }
 
 func (c *contextImpl) Scheme() string {
-	return c.Request().Scheme()
+	header := c.request.Header
+	if scheme := header.Get(HeaderXForwardedProto); scheme != "" {
+		return scheme
+	}
+	if scheme := header.Get(HeaderXForwardedProtocol); scheme != "" {
+		return scheme
+	}
+	if ssl := header.Get(HeaderXForwardedSsl); ssl == "on" {
+		return "https"
+	}
+	if scheme := header.Get(HeaderXUrlScheme); scheme != "" {
+		return scheme
+	}
+	return "http"
 }
 
 func (c *contextImpl) RealIP() string {
-	return c.Request().RealIP()
+	header := c.request.Header
+	if ip := header.Get(HeaderXForwardedFor); ip != "" {
+		i := strings.IndexAny(ip, ",")
+		if i > 0 {
+			return strings.TrimSpace(ip[:i])
+		}
+		return ip
+	}
+	if ip := header.Get(HeaderXRealIP); ip != "" {
+		return ip
+	}
+	ra, _, _ := net.SplitHostPort(c.request.RemoteAddr)
+	return ra
 }
 
 func (c *contextImpl) Path() string {
@@ -187,15 +232,15 @@ func (c *contextImpl) NoContent(status int) error {
 	return nil
 }
 
-func (c contextImpl) HTML(status int, html string) error {
+func (c *contextImpl) HTML(status int, html string) error {
 	return c.HTMLBytes(status, []byte(html))
 }
 
-func (c contextImpl) HTMLBytes(status int, b []byte) error {
+func (c *contextImpl) HTMLBytes(status int, b []byte) error {
 	return c.Result(status, MIMETextHTMLCharsetUTF8, b)
 }
 
-func (c contextImpl) String(status int, s string) error {
+func (c *contextImpl) String(status int, s string) error {
 	return c.Result(status, MIMETextPlainCharsetUTF8, []byte(s))
 }
 
@@ -218,7 +263,7 @@ func (c *contextImpl) JSON(status int, i interface{}) error {
 	return c.json(status, i, "")
 }
 
-func (c contextImpl) JSONPretty(status int, i interface{}) error {
+func (c *contextImpl) JSONPretty(status int, i interface{}) error {
 	return c.JSONWithIndent(status, i, defaultIndent)
 }
 
@@ -226,7 +271,7 @@ func (c *contextImpl) JSONWithIndent(status int, i interface{}, indent string) e
 	return c.json(status, i, indent)
 }
 
-func (c contextImpl) JSONBytes(status int, b []byte) (err error) {
+func (c *contextImpl) JSONBytes(status int, b []byte) (err error) {
 	return c.Result(status, MIMEApplicationJSONCharsetUTF8, b)
 }
 
@@ -270,11 +315,18 @@ func (c *contextImpl) XMLBytes(status int, b []byte) (err error) {
 	return
 }
 
-func (c *contextImpl) Result(status int, contentType string, b []byte) (err error) {
+func (c *contextImpl) ResultStream(status int, contentType string, reader io.Reader) (err error) {
 	c.writeContentType(contentType)
+	if len(contentType) > 0 {
+		c.Response().isBinary = !notBinaryTable[contentType]
+	}
 	c.Response().WriteHeader(status)
-	_, err = c.Write(b)
+	_, err = io.Copy(c.Response(), reader)
 	return
+}
+
+func (c *contextImpl) Result(status int, contentType string, b []byte) (err error) {
+	return c.ResultStream(status, contentType, bytes.NewReader(b))
 }
 
 func (c *contextImpl) Write(b []byte) (int, error) {

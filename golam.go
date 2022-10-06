@@ -3,9 +3,13 @@ package golam
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"io"
 	"net/http"
 	"net/url"
@@ -13,35 +17,14 @@ import (
 	"strings"
 )
 
-// MIME types
 const (
-	MIMEApplicationJSON            = "application/json"
-	MIMEApplicationJSONCharsetUTF8 = MIMEApplicationJSON + "; " + charsetUTF8
-	MIMEApplicationXML             = "application/xml"
-	MIMEApplicationXMLCharsetUTF8  = MIMEApplicationXML + "; " + charsetUTF8
-	MIMETextHTML                   = "text/html"
-	MIMETextHTMLCharsetUTF8        = MIMETextHTML + "; " + charsetUTF8
-	MIMETextPlain                  = "text/plain"
-	MIMETextPlainCharsetUTF8       = MIMETextPlain + "; " + charsetUTF8
+	lambdaHeaderContentLength   = "content-length"
+	lambdaHeaderXForwardedProto = "x-forwarded-proto"
+	lambdaHeaderHost            = "host"
 )
 
-const (
-	charsetUTF8 = "charset=UTF-8"
-)
-
-const (
-	HeaderContentType = "Content-Type"
-)
-
-const (
-	headerXForwardedFor      = "x-forwarded-for"
-	headerXForwardedProto    = "x-forwarded-proto"
-	headerXForwardedProtocol = "x-forwarded-protocol"
-	headerXForwardedSsl      = "x-forwarded-ssl"
-	headerXUrlScheme         = "x-url-scheme"
-	headerXRealIP            = "x-real-ip"
-	headerContentLength      = "content-length"
-	headerHost               = "host"
+var (
+	headerCasesTitle = cases.Title(language.English)
 )
 
 func New() (g *Golam) {
@@ -52,8 +35,9 @@ func New() (g *Golam) {
 
 	if g.isLambdaRuntime {
 		g.router = newLambdaRouter()
+		g.LambdaHandler = &defaultLambdaHandler{golam: g}
 		g.start = func() error {
-			lambda.Start(g.handleAPIGatewayToLambdaV2)
+			lambda.Start(g.LambdaHandler)
 			return nil
 		}
 	} else {
@@ -66,18 +50,27 @@ func New() (g *Golam) {
 	return
 }
 
-var _ http.Handler = (*defaultHttpHandler)(nil)
+var (
+	_ http.Handler   = (*defaultHttpHandler)(nil)
+	_ lambda.Handler = (*defaultLambdaHandler)(nil)
+)
 
 type (
-	HandlerFunc func(c Context) error
-
 	defaultHttpHandler struct {
 		golam *Golam
 	}
 
+	defaultLambdaHandler struct {
+		golam *Golam
+	}
+
+	HandlerFunc func(c Context) error
+
 	Golam struct {
 		LocalAddr    string
 		LocalHandler http.Handler
+
+		LambdaHandler lambda.Handler
 
 		NotFoundHandler HandlerFunc
 
@@ -94,38 +87,13 @@ type (
 )
 
 func (d *defaultHttpHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-
 	method := request.Method
-
-	ctxReq := &Req{
-		Method:        request.Method,
-		ProtoMajor:    request.ProtoMajor,
-		ProtoMinor:    request.ProtoMinor,
-		ReqHeader:     make(map[string]string),
-		ContentLength: request.ContentLength,
-		Host:          request.Host,
-		RemoteAddr:    request.RemoteAddr,
-		ctx:           request.Context(),
-	}
-
-	var b bytes.Buffer
-	if written, err := io.Copy(&b, request.Body); err != nil {
-		// TODO io 에러
-	} else if written != request.ContentLength {
-		// TODO 잘못된 컨텐츠 사이즈
-	}
-
-	reqHeader := request.Header
-	ctxReq.readHeader(reqHeader)
-	ctxReq.readCookiesFromHeader(reqHeader)
-	ctxReq.Body = b.String()
-
 	reqPath := request.URL.Path
 
 	ctxImpl := &contextImpl{
-		request: ctxReq,
-		response: &Resp{
-			RespHeader: make(http.Header),
+		request: request,
+		response: &Response{
+			header: make(http.Header),
 		},
 		path:              reqPath,
 		query:             request.URL.Query(),
@@ -184,13 +152,13 @@ func (d *defaultHttpHandler) ServeHTTP(writer http.ResponseWriter, request *http
 		resp := ctxImpl.Response()
 		resp.Committed = true
 
-		for k, values := range resp.RespHeader {
+		for k, values := range resp.header {
 			for _, val := range values {
 				writer.Header().Add(k, val)
 			}
 		}
 
-		for _, cookie := range resp.Cookies {
+		for _, cookie := range resp.cookies {
 			http.SetCookie(writer, cookie)
 		}
 
@@ -201,54 +169,67 @@ func (d *defaultHttpHandler) ServeHTTP(writer http.ResponseWriter, request *http
 	}
 }
 
-func (g *Golam) StartWithLocalAddr(localAddr string) error {
-	g.LocalAddr = localAddr
-	return g.Start()
-}
-
-func (g *Golam) Start() error {
-	if g.start == nil {
-		return errors.New("must setup start")
+func (d *defaultLambdaHandler) Invoke(ctx context.Context, payload []byte) ([]byte, error) {
+	var request events.APIGatewayV2HTTPRequest
+	err := json.Unmarshal(payload, &request)
+	if err != nil {
+		//TODO: logging
+		return nil, err
 	}
-
-	return g.start()
-}
-
-func (g *Golam) Router() Router {
-	return g.router
-}
-
-func (g *Golam) handleAPIGatewayToLambdaV2(ctx context.Context, request events.APIGatewayV2HTTPRequest) (response events.APIGatewayV2HTTPResponse, err error) {
 
 	method := request.RequestContext.HTTP.Method
-
-	ctxReq := &Req{
-		Method:        method,
-		ReqHeader:     request.Headers,
-		Body:          request.Body,
-		ContentLength: getContentLength(&request),
-		Host:          request.Headers[headerHost],
-		RemoteAddr:    request.RequestContext.HTTP.SourceIP,
-		ctx:           ctx,
+	var rawURL strings.Builder
+	rawURL.WriteString(request.Headers[lambdaHeaderXForwardedProto])
+	rawURL.WriteString("://")
+	rawURL.WriteString(request.Headers[lambdaHeaderHost])
+	rawURL.WriteString(request.RawPath)
+	if len(request.RawQueryString) > 0 {
+		rawURL.WriteString("?")
+		rawURL.WriteString(request.RawQueryString)
 	}
 
-	ctxReq.ProtoMajor, ctxReq.ProtoMinor = getProtoVersion(&request)
-	ctxReq.readCookiesFromStrings(request.Cookies)
+	var body []byte
+	if request.IsBase64Encoded {
+		body, err = base64.StdEncoding.DecodeString(request.Body)
+		if err != nil {
+			//TODO: logging
+			return nil, err
+		}
+	} else {
+		body = []byte(request.Body)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, rawURL.String(), bytes.NewReader(body))
+	if err != nil {
+		//TODO: logging
+		return nil, err
+	}
+
+	req.ProtoMajor, req.ProtoMinor = getProtoVersion(&request)
+	req.RemoteAddr = request.RequestContext.HTTP.SourceIP
+	for k, v := range request.Headers {
+		k = headerCasesTitle.String(k)
+		if val := req.Header.Get(k); len(val) > 0 {
+			continue
+		}
+
+		req.Header.Set(k, v)
+	}
 
 	ctxImpl := &contextImpl{
-		request: ctxReq,
-		response: &Resp{
-			RespHeader: make(http.Header),
+		request: req,
+		response: &Response{
+			header: make(http.Header),
 		},
 		path:                request.RequestContext.HTTP.Path,
-		golam:               g,
+		golam:               d.golam,
 		primalRequestLambda: &request,
 	}
 
 	ctxImpl.query, _ = url.ParseQuery(request.RawQueryString)
 
 	pathKey := request.RouteKey[strings.Index(request.RouteKey, " ")+1:]
-	r := g.Router().FindRoute(pathKey)
+	r := d.golam.Router().FindRoute(pathKey)
 	if r != nil {
 		handler := r.handlers.getHandler(method)
 		if handler != nil {
@@ -270,12 +251,12 @@ func (g *Golam) handleAPIGatewayToLambdaV2(ctx context.Context, request events.A
 	}
 
 	if ctxImpl.handler == nil {
-		ctxImpl.handler = g.NotFoundHandler
+		ctxImpl.handler = d.golam.NotFoundHandler
 	} else {
-		ctxImpl.handler = wrapMiddleware(ctxImpl.handler, append(g.preMiddleware, g.middleware...)...)
+		ctxImpl.handler = wrapMiddleware(ctxImpl.handler, append(d.golam.preMiddleware, d.golam.middleware...)...)
 	}
 
-	// TODO error handle
+	var response events.APIGatewayV2HTTPResponse
 	switch err = ctxImpl.handler(ctxImpl); err {
 	case nil:
 		resp := ctxImpl.Response()
@@ -285,10 +266,17 @@ func (g *Golam) handleAPIGatewayToLambdaV2(ctx context.Context, request events.A
 			StatusCode:        resp.StatusCode,
 			Headers:           make(map[string]string),
 			MultiValueHeaders: make(map[string][]string),
+			IsBase64Encoded:   resp.isBinary,
 			Body:              resp.BodyBuffer.String(),
 		}
 
-		for k, v := range resp.RespHeader {
+		if response.IsBase64Encoded {
+			response.Body = base64.StdEncoding.EncodeToString(resp.BodyBuffer.Bytes())
+		} else {
+			response.Body = resp.BodyBuffer.String()
+		}
+
+		for k, v := range resp.header {
 			if len(v) > 1 {
 				response.MultiValueHeaders[k] = v
 			} else {
@@ -296,16 +284,33 @@ func (g *Golam) handleAPIGatewayToLambdaV2(ctx context.Context, request events.A
 			}
 		}
 
-		response.Cookies = make([]string, 0, len(resp.Cookies))
-		for i := range resp.Cookies {
-			response.Cookies = append(response.Cookies, resp.Cookies[i].String())
+		response.Cookies = make([]string, 0, len(resp.cookies))
+		for i := range resp.cookies {
+			response.Cookies = append(response.Cookies, resp.cookies[i].String())
 		}
 
 	default:
 		// TODO error handler
 	}
 
-	return
+	return json.Marshal(response)
+}
+
+func (g *Golam) StartWithLocalAddr(localAddr string) error {
+	g.LocalAddr = localAddr
+	return g.Start()
+}
+
+func (g *Golam) Start() error {
+	if g.start == nil {
+		return errors.New("must setup start")
+	}
+
+	return g.start()
+}
+
+func (g *Golam) Router() Router {
+	return g.router
 }
 
 func getProtoVersion(request *events.APIGatewayV2HTTPRequest) (major, minor int) {
@@ -334,7 +339,7 @@ func getContentLength(request *events.APIGatewayV2HTTPRequest) (l int64) {
 		return
 	}
 
-	l, _ = strconv.ParseInt(request.Headers[headerContentLength], 10, 0)
+	l, _ = strconv.ParseInt(request.Headers[lambdaHeaderContentLength], 10, 0)
 	return
 }
 

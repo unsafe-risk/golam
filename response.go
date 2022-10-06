@@ -5,28 +5,30 @@ import (
 	"net/http"
 )
 
-var _ http.ResponseWriter = (*Resp)(nil)
+var _ http.ResponseWriter = (*Response)(nil)
 
-type Resp struct {
+type Response struct {
+	header   http.Header
+	cookies  []*http.Cookie
+	isBinary bool
+
 	StatusCode int
-	RespHeader http.Header
-	Cookies    []*http.Cookie
 	BodyBuffer bytes.Buffer
 	Committed  bool
 }
 
-func (r *Resp) Header() http.Header {
-	return r.RespHeader
+func (r *Response) Header() http.Header {
+	return r.header
 }
 
-func (r *Resp) Write(b []byte) (int, error) {
+func (r *Response) Write(b []byte) (int, error) {
 	return r.BodyBuffer.Write(b)
 }
 
-func (r *Resp) WriteHeader(statusCode int) {
+func (r *Response) WriteHeader(statusCode int) {
 	r.StatusCode = statusCode
 }
 
-func (r *Resp) SetCookie(cookie *http.Cookie) {
-	r.Cookies = append(r.Cookies, cookie)
+func (r *Response) SetCookie(cookie *http.Cookie) {
+	r.cookies = append(r.cookies, cookie)
 }
