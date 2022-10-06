@@ -8,8 +8,6 @@ import (
 	"errors"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 	"io"
 	"net/http"
 	"net/url"
@@ -21,10 +19,6 @@ const (
 	lambdaHeaderContentLength   = "content-length"
 	lambdaHeaderXForwardedProto = "x-forwarded-proto"
 	lambdaHeaderHost            = "host"
-)
-
-var (
-	headerCasesTitle = cases.Title(language.English)
 )
 
 func New() (g *Golam) {
@@ -208,8 +202,7 @@ func (d *defaultLambdaHandler) Invoke(ctx context.Context, payload []byte) ([]by
 	req.ProtoMajor, req.ProtoMinor = getProtoVersion(&request)
 	req.RemoteAddr = request.RequestContext.HTTP.SourceIP
 	for k, v := range request.Headers {
-		k = headerCasesTitle.String(k)
-		if val := req.Header.Get(k); len(val) > 0 {
+		if req.Header.Get(k) == v {
 			continue
 		}
 

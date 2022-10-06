@@ -28,7 +28,11 @@ type Context interface {
 
 	Request() *http.Request
 
+	RequestBody() io.ReadCloser
+
 	RequestBodyString() string
+
+	RequestBodyBytes() []byte
 
 	Response() *Response
 
@@ -81,7 +85,7 @@ type Context interface {
 	ResultStream(status int, contentType string, reader io.Reader) error
 
 	Result(status int, contentType string, b []byte) error
-	
+
 	Write(b []byte) (int, error)
 
 	// TODO
@@ -104,6 +108,7 @@ var _ Context = (*contextImpl)(nil)
 type contextImpl struct {
 	ctx                 context.Context
 	request             *http.Request
+	requestBodyBytes    []byte
 	response            *Response
 	path                string
 	pathParams          PathParams
@@ -148,10 +153,31 @@ func (c *contextImpl) Request() *http.Request {
 	return c.request
 }
 
+func (c *contextImpl) RequestBody() io.ReadCloser {
+	return c.Request().Body
+}
+
 func (c *contextImpl) RequestBodyString() string {
+	return string(c.RequestBodyBytes())
+}
+
+func (c *contextImpl) RequestBodyBytes() []byte {
+	if c.requestBodyBytes != nil {
+		return c.requestBodyBytes
+	}
+
 	var buf bytes.Buffer
-	c.request.Body = io.NopCloser(io.TeeReader(c.request.Body, &buf))
-	return buf.String()
+	tee := io.TeeReader(c.request.Body, &buf)
+
+	var err error
+	c.requestBodyBytes, err = io.ReadAll(tee)
+	if err != nil {
+		//TODO: logging
+		return []byte{}
+	}
+
+	c.request.Body = io.NopCloser(&buf)
+	return c.requestBodyBytes
 }
 
 func (c *contextImpl) Response() *Response {
