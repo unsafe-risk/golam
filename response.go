@@ -1,34 +1,55 @@
 package golam
 
 import (
-	"bytes"
+	"errors"
 	"net/http"
 )
 
-var _ http.ResponseWriter = (*Response)(nil)
+func NewResponse(adapter ResponseAdapter) *Response {
+	return &Response{
+		adapter:   adapter,
+		Committed: false,
+	}
+}
 
 type Response struct {
-	header   http.Header
-	cookies  []*http.Cookie
-	isBinary bool
-
-	StatusCode int
-	BodyBuffer bytes.Buffer
-	Committed  bool
+	adapter   ResponseAdapter
+	Committed bool
 }
 
 func (r *Response) Header() http.Header {
-	return r.header
+	return r.adapter.Header()
 }
 
 func (r *Response) Write(b []byte) (int, error) {
-	return r.BodyBuffer.Write(b)
+	return r.adapter.Write(b)
 }
 
 func (r *Response) WriteHeader(statusCode int) {
-	r.StatusCode = statusCode
+	r.adapter.WriteHeader(statusCode)
 }
 
 func (r *Response) SetCookie(cookie *http.Cookie) {
-	r.cookies = append(r.cookies, cookie)
+	r.adapter.SetCookie(cookie)
+}
+
+func (r *Response) ResponseWriter() http.ResponseWriter {
+	return r.adapter
+}
+
+func (r *Response) Commit() error {
+	if r.Committed {
+		return errors.New("already committed")
+	}
+
+	defer func() {
+		r.Committed = true
+	}()
+	return r.adapter.Commit()
+}
+
+type ResponseAdapter interface {
+	http.ResponseWriter
+	SetCookie(cookie *http.Cookie)
+	Commit() error
 }

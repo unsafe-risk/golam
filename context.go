@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"github.com/aws/aws-lambda-go/events"
 	"io"
 	"net"
@@ -33,6 +34,8 @@ type Context interface {
 	RequestBodyString() string
 
 	RequestBodyBytes() []byte
+
+	SetResponse(r *Response)
 
 	Response() *Response
 
@@ -87,6 +90,8 @@ type Context interface {
 	Result(status int, contentType string, b []byte) error
 
 	Write(b []byte) (int, error)
+
+	Redirect(status int, url string) error
 
 	// TODO
 	//Logger() log.Logger
@@ -180,25 +185,16 @@ func (c *contextImpl) RequestBodyBytes() []byte {
 	return c.requestBodyBytes
 }
 
+func (c *contextImpl) SetResponse(r *Response) {
+	c.response = r
+}
+
 func (c *contextImpl) Response() *Response {
 	return c.response
 }
 
 func (c *contextImpl) Scheme() string {
-	header := c.request.Header
-	if scheme := header.Get(HeaderXForwardedProto); scheme != "" {
-		return scheme
-	}
-	if scheme := header.Get(HeaderXForwardedProtocol); scheme != "" {
-		return scheme
-	}
-	if ssl := header.Get(HeaderXForwardedSsl); ssl == "on" {
-		return "https"
-	}
-	if scheme := header.Get(HeaderXUrlScheme); scheme != "" {
-		return scheme
-	}
-	return "http"
+	return getSchemeFromHeader(c.request.Header)
 }
 
 func (c *contextImpl) RealIP() string {
@@ -343,9 +339,6 @@ func (c *contextImpl) XMLBytes(status int, b []byte) (err error) {
 
 func (c *contextImpl) ResultStream(status int, contentType string, reader io.Reader) (err error) {
 	c.writeContentType(contentType)
-	if len(contentType) > 0 {
-		c.Response().isBinary = !notBinaryTable[contentType]
-	}
 	c.Response().WriteHeader(status)
 	_, err = io.Copy(c.Response(), reader)
 	return
@@ -357,6 +350,16 @@ func (c *contextImpl) Result(status int, contentType string, b []byte) (err erro
 
 func (c *contextImpl) Write(b []byte) (int, error) {
 	return c.Response().Write(b)
+}
+
+func (c *contextImpl) Redirect(status int, url string) error {
+	if status < http.StatusMultipleChoices ||
+		status > http.StatusPermanentRedirect {
+		return errors.New("invalid redirect status code")
+	}
+	c.Response().Header().Set(HeaderLocation, url)
+	c.Response().WriteHeader(status)
+	return nil
 }
 
 func (c *contextImpl) Golam() *Golam {
